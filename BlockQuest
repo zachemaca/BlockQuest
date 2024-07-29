@@ -1,0 +1,80 @@
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+
+class BlockQuest:
+    def __init__(self, blockchain='bitcoin'):
+        self.blockchair_api_url = f'https://api.blockchair.com/{blockchain}'
+
+    def get_block_data(self, block_id: str) -> dict:
+        """Fetches data for a specific block."""
+        url = f"{self.blockchair_api_url}/blocks/{block_id}"
+        response = requests.get(url)
+        return response.json().get('data', {})
+
+    def get_transaction_data(self, tx_id: str) -> dict:
+        """Fetches data for a specific transaction."""
+        url = f"{self.blockchair_api_url}/transactions/{tx_id}"
+        response = requests.get(url)
+        return response.json().get('data', {})
+
+    def get_block_statistics(self, days: int) -> pd.DataFrame:
+        """Fetches historical block statistics for the last specified number of days."""
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        date_range = pd.date_range(start=start_date, end=end_date).strftime('%Y-%m-%d').tolist()
+
+        block_stats = []
+        for date in date_range:
+            url = f"{self.blockchair_api_url}/stats"
+            params = {'date': date}
+            response = requests.get(url, params=params)
+            data = response.json().get('data', {})
+            block_stats.append({
+                'date': date,
+                'block_count': data.get('block_count', 0),
+                'transaction_count': data.get('transaction_count', 0)
+            })
+
+        df = pd.DataFrame(block_stats)
+        df['date'] = pd.to_datetime(df['date'])
+        df.set_index('date', inplace=True)
+        return df
+
+    def plot_block_statistics(self, days: int):
+        """Plots historical block statistics for the last specified number of days."""
+        df = self.get_block_statistics(days)
+        if df.empty:
+            print("No block statistics data found.")
+            return
+
+        plt.figure(figsize=(12, 6))
+        plt.plot(df.index, df['block_count'], label='Block Count', marker='o')
+        plt.plot(df.index, df['transaction_count'], label='Transaction Count', marker='o')
+        plt.title('Block and Transaction Statistics')
+        plt.xlabel('Date')
+        plt.ylabel('Count')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+# Example Usage
+if __name__ == "__main__":
+    blockchain = 'bitcoin'  # Replace with the blockchain you want to analyze
+    blockquest = BlockQuest(blockchain=blockchain)
+
+    # Fetch and Display Block Data
+    block_id = '0000000000000000000a4d6b3b5fa4e5f8d2c1a8b9d751c57b6c74f8e6f4a6b'  # Replace with a valid block ID
+    block_data = blockquest.get_block_data(block_id)
+    print(f"Data for block {block_id}:")
+    print(block_data)
+
+    # Fetch and Display Transaction Data
+    tx_id = 'd2c8e5f4d8f9a2c13e7b2f6c8a5d9e8a9c6b4f8a2e8d3f4b2c6e4f8e6d3f7a8'  # Replace with a valid transaction ID
+    tx_data = blockquest.get_transaction_data(tx_id)
+    print(f"Data for transaction {tx_id}:")
+    print(tx_data)
+
+    # Plot Historical Block Statistics
+    blockquest.plot_block_statistics(days=30)  # Last 30 days
